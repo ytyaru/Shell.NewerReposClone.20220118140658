@@ -15,6 +15,7 @@ Run() {
 	cd "$HERE"
 	[ -f 'error.sh' ] && . error.sh
 #	[ -f 'get_tokens.sh' && . get_tokens.sh
+	local DEBUG=0;
 	ParseCommand() {
 		THIS_NAME=`basename "$BASH_SOURCE"`
 		SUMMARY='最後にpushしたリポジトリをクローンする。'
@@ -22,22 +23,30 @@ Run() {
 		ARG_FLAG=; ARG_OPT=;
 		Help() { eval "echo -e \"$(cat help.txt)\""; }
 		Version() { echo "$VERSION"; }
-		while getopts ":hv:" OPT; do
+		while getopts ":hvd" OPT; do
 		case $OPT in
 			h) Help; exit 0;;
 			v) Version; exit 0;;
+			d) { DEBUG=1; [ -f 'debug.sh' ] && . debug.sh || :; };;
 		esac
 		done
 		shift $(($OPTIND - 1))
+		ParseSubCommand() {
+			case $1 in
+			-h|--help) Help; exit 0;;
+			-v|--version) Version; exit 0;;
+			esac
+		}
+		[ 0 -lt $# ] && ParseSubCommand "$@" || :;
+
+		IsInt() { test 0 -eq $1 > /dev/null 2>&1 || expr $1 + 0 > /dev/null 2>&1; }
+		[ 1 -eq $# ] && { IsInt "$1" && NUM=$1 || USER=$1; }
+		[ 2 -eq $# ] && { USER=$1; NUM=$2; }
+		IsInt "$NUM" || Error '引数は整数にしてください。' || :;
+		[ $NUM -lt 1 ] && Error '取得数は1〜100以内の整数にしてください。' || :;
+		[ 100 -lt $NUM ] && Error '取得数は1〜100以内の整数にしてください。' || :;
 	}
 	ParseCommand "$@"
-	IsInt() { test 0 -eq $1 > /dev/null 2>&1 || expr $1 + 0 > /dev/null 2>&1; }
-	[ 1 -eq $# ] && { IsInt "$1" && NUM=$1 || USER=$1; }
-	[ 2 -eq $# ] && { USER=$1; NUM=$2; }
-	IsInt "$NUM" || Error '引数は整数にしてください。';
-	[ $NUM -lt 1 ] && Error '取得数は1〜100以内の整数にしてください。'
-	[ 100 -lt $NUM ] && Error '取得数は1〜100以内の整数にしてください。'
-
 	NewerReposApiUrl() {
 		local TYPE='all'          # all,public,private,forks,sources,member,internal
 		local SORT="${2:-pushed}" # created,updated,pushed,full_name
@@ -67,23 +76,24 @@ Run() {
 		#cat "$TOKEN_TSV" | grep $USER | grep $NOTE | cut -f2
 	}
 	ReqNewerRepos() {
-		curl -H "Authorization: token $1" "$(NewerReposApiUrl $USER)"
+		curl -s -H "Authorization: token $1" "$(NewerReposApiUrl $USER)"
 	}
 	NewerRepoUrls() { echo "$(ReqNewerRepos "$1")" | jq -r .[].clone_url; }
 
 	# なぜか空文字のとき終了できない
-	echo "$USER"
-	echo "$NUM"
-	echo "$(NewerReposApiUrl)"
 	local TOKEN="$(GetToken $USER | sed -e "s/[\r\n]\+//g")"
-#	echo "TOKEN: $TOKEN"
 	[ -z "$TOKEN" ] && return 1 || :;
-
+	[ 1 -eq $DEBUG ] && {
+		Debug "ユーザ名:$USER"
+		Debug "取得数:$NUM"
+		Debug "TOKEN:$TOKEN"
+		Debug "GitHub API:$(NewerReposApiUrl)"
+	}
 	# ディレクトリ既存エラー（already exists and is not an empty directory.）で中断せず全件実行するようにsetする
 	set +e
 	cd "$PATH_CLONE"
 	echo -e "$(NewerRepoUrls "$TOKEN")" | while read url; do
-		echo $url
+		[ 1 -eq $DEBUG ] && { Debug "対象リポジトリURL:$url"; }
 		git clone "$url"
 	done
 	set -e

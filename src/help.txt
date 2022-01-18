@@ -1,10 +1,18 @@
 ${SUMMARY}	${VERSION}
-${THIS_NAME} [-f] [-o OPT] POS1 POS2 POS3 ...
-Arguments:
-  STDIN  
-  POS1   
-Parameters:
-  -f                     
-  -o|--option 'default'  
+${THIS_NAME} [-hvd] [USER] [NUM]
+OptionArguments:
+  USER  GitHubユーザ名。初期値:${INIT_USER}
+  NUM   取得数。初期値:${INIT_NUM}
+TSV:
+  ${TOKEN_TSV}
 Examples:
-  ${THIS_NAME} -h
+  ${THIS_NAME}
+  ${THIS_NAME} 3
+  ${THIS_NAME} ytyaru
+  ${THIS_NAME} ytyaru 3
+OptionSwitch:
+  -d    デバッグ出力
+SubCommand
+  -h    ヘルプ
+  -v    バージョン
+
